@@ -1,0 +1,1306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faztrack FMS Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  /* Tokens sourced from Faztrack Brand Identity Guideline v1.0 (Draft) §3–4 */
+  :root{
+    color-scheme: light;
+    --bg-page:#eef1f5;        /* off-white canvas, slightly toned for depth */
+    --surface-1:#ffffff;
+    --surface-2:#f7f8fa;      /* Off White #F7F8FA — dashboard work area */
+    --surface-3:#eef1f5;
+    --border:#d9e2ec;         /* Light Gray #D9E2EC — border/separator/grid */
+    --border-strong:#c3cedb;
+    --text-primary:#102a43;   /* Faztrack Navy used for headline text */
+    --text-secondary:#52606d; /* Slate #52606D — secondary/caption/metadata */
+    --text-muted:#7b8794;
+
+    --navy:#102a43;           /* Faztrack Navy — header, title, trust elements */
+    --deep-navy:#243b53;      /* Deep Navy — layer, hover, secondary panel */
+    --navy-soft:rgba(16,42,67,0.07);
+    --on-navy:#ffffff;        /* white on navy per contrast rule */
+
+    --amber:#f5a623;          /* Execution Amber — action, priority, signature mark */
+    --amber-dark:#d98200;     /* Amber Dark — amber text/icons needing contrast */
+    --amber-soft:rgba(245,166,35,0.16);
+    --on-amber:#102a43;       /* navy/black on amber per contrast rule */
+
+    --good:#2f855a;           /* Success / healthy */
+    --good-soft:rgba(47,133,90,0.13);
+    --critical:#c53030;       /* Critical / loss */
+    --critical-soft:rgba(197,48,48,0.11);
+    --live-cyan:#168aad;      /* Live / connected — measured data, not brand color */
+    --live-soft:rgba(22,138,173,0.13);
+
+    /* back-compat roles used throughout the component CSS below */
+    --accent:var(--navy);
+    --accent-strong:var(--deep-navy);
+    --accent-soft:var(--navy-soft);
+    --accent-ink:var(--on-navy);
+    --warning:var(--amber-dark);
+    --warning-soft:var(--amber-soft);
+
+    --font-display:'Manrope', system-ui, -apple-system, sans-serif;
+    --font-body:'Inter', system-ui, -apple-system, Arial, sans-serif;
+    --font-mono:'Inter', system-ui, -apple-system, Arial, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(16,42,67,0.05), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(197,48,48,0.035), transparent 55%),
+      var(--bg-page);
+    color:var(--text-primary);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+
+  .fms-app{max-width:1280px;margin:0 auto;padding:20px 20px 64px;}
+
+  a{color:var(--accent-strong);}
+  h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance;}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums;}
+  .eyebrow{
+    font-family:var(--font-display);
+    text-transform:uppercase;
+    letter-spacing:0.11em;
+    font-size:12px;
+    color:var(--text-muted);
+    font-weight:600;
+  }
+  button{font-family:inherit;}
+  .btn-icon{display:inline-flex;flex-shrink:0;}
+  .btn-icon svg{display:block;}
+  button:focus-visible, [tabindex]:focus-visible, input:focus-visible, .veh-chip:focus-visible{
+    outline:2px solid var(--accent-strong);
+    outline-offset:2px;
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:20px;
+    padding:14px 4px 18px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:11px;margin-right:6px;}
+  .brand-mark{
+    width:38px;height:38px;border-radius:9px;
+    background:linear-gradient(155deg, var(--accent) 0%, #0a1730 100%);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:600;font-size:13px;color:var(--accent-ink);
+    box-shadow:0 0 0 1px var(--border-strong), 0 6px 18px -6px rgba(16,42,67,0.35);
+    flex-shrink:0;
+  }
+  .brand-text h1{font-size:22px;letter-spacing:0.01em;line-height:1;}
+  .brand-text .eyebrow{margin-top:3px;}
+
+  .tabnav{display:flex;gap:4px;background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:4px;}
+  .tabnav button{
+    background:transparent;border:none;color:var(--text-secondary);
+    font-family:var(--font-display);font-size:15px;letter-spacing:0.03em;font-weight:600;
+    padding:7px 15px;border-radius:7px;cursor:pointer;text-transform:uppercase;
+    transition:background .15s ease, color .15s ease;
+  }
+  .tabnav button:hover{color:var(--text-primary);}
+  .tabnav button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent-strong);}
+
+  .topbar-actions{display:flex;align-items:center;gap:10px;margin-left:auto;}
+  .status-pill{
+    display:flex;align-items:center;gap:7px;
+    padding:7px 12px;border-radius:999px;border:1px solid var(--border-strong);
+    font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:0.03em;color:var(--text-secondary);
+    background:var(--surface-1);
+  }
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);flex-shrink:0;}
+  .status-pill.live{color:var(--live-cyan);border-color:rgba(22,138,173,0.35);background:var(--live-soft);}
+  .status-pill.live .status-dot{background:var(--live-cyan);box-shadow:0 0 0 3px rgba(22,138,173,0.22);animation:pulse-dot 1.6s ease-in-out infinite;}
+  @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:0.45;}}
+
+  .btn{
+    font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:0.03em;text-transform:uppercase;
+    border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid var(--border-strong);
+    background:var(--surface-2);color:var(--text-primary);
+    transition:background .15s ease, border-color .15s ease, transform .05s ease;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn:hover{background:var(--surface-3);}
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--amber);border-color:var(--amber);color:var(--on-amber);font-weight:700;}
+  .btn-primary:hover{background:#e2960f;border-color:#e2960f;}
+  .btn-primary.is-running{background:var(--surface-1);border-color:var(--border-strong);color:var(--text-secondary);}
+  .btn-primary.is-running:hover{background:var(--surface-2);}
+  .btn-ghost.is-off{color:var(--text-muted);}
+  .btn-ghost.is-on{color:var(--amber-dark);border-color:rgba(217,130,0,0.4);background:var(--amber-soft);}
+
+  /* ---------- Fleet strip ---------- */
+  .fleet-strip{
+    display:flex;gap:10px;overflow-x:auto;padding:16px 2px 6px;margin-bottom:6px;
+  }
+  .veh-chip{
+    flex:0 0 auto;display:flex;flex-direction:column;gap:6px;
+    min-width:168px;padding:11px 13px;border-radius:10px;
+    background:var(--surface-1);border:1px solid var(--border);cursor:pointer;text-align:left;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .veh-chip:hover{border-color:var(--border-strong);}
+  .veh-chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);}
+  .veh-chip-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .veh-chip-id{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;letter-spacing:0.02em;}
+  .veh-chip-name{font-size:12px;color:var(--text-secondary);}
+  .veh-chip-stats{display:flex;align-items:baseline;gap:5px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--text-secondary);}
+  .veh-chip-stats b{font-size:15px;color:var(--text-primary);font-weight:600;}
+  .sev-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .sev-dot.normal{background:var(--good);}
+  .sev-dot.warning{background:var(--warning);}
+  .sev-dot.critical{background:var(--critical);box-shadow:0 0 0 3px rgba(197,48,48,0.22);}
+  .sev-dot.offline{background:var(--text-muted);}
+
+  /* ---------- Panels / cards ---------- */
+  .panel{
+    background:var(--surface-1);border:1px solid var(--border);border-radius:10px;
+    padding:18px 20px;
+  }
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .panel-head h2{font-size:19px;letter-spacing:0.01em;}
+  .panel-sub{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  /* ---------- Dashboard grid ---------- */
+  .dash-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;align-items:start;}
+  @media (max-width:880px){.dash-grid{grid-template-columns:1fr;}}
+
+  .health-banner{
+    display:flex;align-items:center;gap:14px;padding:15px 18px;border-radius:10px;
+    border:1px solid var(--border-strong);background:var(--surface-2);margin-bottom:16px;
+    border-left:4px solid var(--good);
+  }
+  .health-banner.warning{border-left-color:var(--warning);}
+  .health-banner.critical{border-left-color:var(--critical);}
+  .health-banner.offline{border-left-color:var(--text-muted);}
+  .health-banner.offline .health-title{color:var(--text-secondary);}
+  .health-icon{flex-shrink:0;display:flex;color:var(--good);}
+  .health-banner.warning .health-icon{color:var(--amber-dark);}
+  .health-banner.critical .health-icon{color:var(--critical);}
+  .health-banner.offline .health-icon{color:var(--text-muted);}
+  .health-title{font-family:var(--font-display);font-size:18px;font-weight:600;letter-spacing:0.01em;}
+  .health-detail{font-size:12.5px;color:var(--text-secondary);margin-top:2px;}
+  .health-banner.critical .health-title{color:var(--critical);}
+  .health-banner.critical{animation:banner-pulse 1.4s ease-in-out infinite;}
+  .health-banner.alerts-muted{animation:none;}
+
+  @keyframes banner-pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(197,48,48,0.0);}
+    50%{box-shadow:0 0 0 4px rgba(197,48,48,0.12);}
+  }
+
+  .gauge-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px;}
+  .gauge-card{
+    flex:1 1 150px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:12px 8px 14px;display:flex;flex-direction:column;align-items:center;
+  }
+  .gauge-card svg{width:100%;max-width:150px;height:auto;}
+  .gauge-value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:23px;font-weight:600;}
+  .gauge-unit{font-size:11px;color:var(--text-muted);margin-left:2px;}
+  .gauge-label{font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.08em;font-size:12px;color:var(--text-secondary);margin-top:2px;}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  @media (max-width:560px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+  .stat-tile{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;border-left:3px solid var(--border-strong);
+  }
+  .stat-tile.warning{border-left-color:var(--warning);}
+  .stat-tile.critical{border-left-color:var(--critical);}
+  .stat-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-display);font-weight:600;}
+  .stat-value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;margin-top:3px;}
+  .stat-value span{font-size:11px;color:var(--text-muted);font-weight:400;margin-left:2px;}
+
+  .insight-panel{
+    margin-top:16px;background:var(--surface-2);
+    border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;padding:14px 16px;
+  }
+  .insight-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--text-secondary);}
+  .insight-head svg{color:var(--amber-dark);}
+  .insight-title{font-family:var(--font-display);font-size:13px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-secondary);font-weight:700;}
+  .insight-rows{display:flex;flex-direction:column;gap:9px;}
+  .insight-row{display:grid;grid-template-columns:112px 1fr;gap:10px;align-items:baseline;}
+  .insight-label{font-family:var(--font-display);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;}
+  .insight-value{font-size:14px;line-height:1.45;color:var(--text-primary);}
+  .insight-value.action{color:var(--amber-dark);font-weight:600;}
+  .insight-evidence{font-size:11px;color:var(--text-muted);margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+  .telem-groups{display:flex;flex-direction:column;gap:12px;}
+  .telem-group-title{font-family:var(--font-display);font-size:13px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:7px;font-weight:600;}
+  .telem-list{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;}
+  .telem-row{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding:6px 0;border-bottom:1px dashed var(--border);font-size:13px;
+  }
+  .telem-row .k{color:var(--text-secondary);}
+  .telem-row .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-weight:600;}
+
+  /* ---------- Analysis tab ---------- */
+  .chart-stack{display:flex;flex-direction:column;gap:14px;}
+  .chart-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .chart-card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .chart-card-head h3{font-size:15px;font-weight:600;}
+  .chart-now{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--text-secondary);}
+  .chart-wrap{position:relative;width:100%;height:110px;}
+  .chart-wrap svg{width:100%;height:100%;display:block;overflow:visible;}
+  .chart-tooltip{
+    position:absolute;pointer-events:none;background:var(--surface-3);border:1px solid var(--border-strong);
+    border-radius:6px;padding:4px 8px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-primary);
+    transform:translate(-50%,-115%);white-space:nowrap;opacity:0;transition:opacity .1s ease;z-index:2;
+  }
+  .chart-tooltip.visible{opacity:1;}
+
+  .compare-row{display:flex;align-items:flex-end;gap:18px;height:150px;padding:10px 6px 0;}
+  .compare-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px;}
+  .compare-bar{
+    width:100%;max-width:52px;border-radius:6px 6px 3px 3px;background:var(--surface-3);
+    position:relative;transition:height .4s ease;
+  }
+  .compare-bar.selected{background:var(--accent);}
+  .compare-bar-value{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;}
+  .compare-bar-label{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-muted);text-align:center;}
+
+  /* ---------- Logs tab ---------- */
+  .log-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;}
+  table.log-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:680px;}
+  table.log-table thead th{
+    position:sticky;top:0;background:var(--surface-2);text-align:left;
+    padding:9px 12px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.06em;
+    font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border-strong);font-weight:600;
+  }
+  table.log-table td{padding:8px 12px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  table.log-table tbody tr:hover{background:var(--surface-2);}
+  .log-scroll{max-height:420px;overflow-y:auto;}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 6px;border-radius:999px;font-size:11px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+  .badge.normal{background:var(--good-soft);color:var(--good);}
+  .badge.warning{background:var(--warning-soft);color:var(--warning);}
+  .badge.critical{background:var(--critical-soft);color:var(--critical);}
+  .empty-log{padding:26px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+  /* ---------- Settings tab ---------- */
+  .settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 20px;max-width:640px;}
+  @media (max-width:600px){.settings-grid{grid-template-columns:1fr;}}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field.full{grid-column:1 / -1;}
+  .field label{font-size:12px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);font-weight:600;}
+  .field input{
+    background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;
+    padding:9px 11px;color:var(--text-primary);font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:13.5px;
+  }
+  .field input:focus-visible{outline:2px solid var(--accent-strong);outline-offset:1px;}
+  .field-hint{font-size:11px;color:var(--text-muted);}
+  .settings-actions{display:flex;align-items:center;gap:12px;margin-top:18px;}
+  .toast{
+    font-size:12.5px;color:var(--good);opacity:0;transition:opacity .2s ease;font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  }
+  .toast.visible{opacity:1;}
+
+  footer{
+    margin-top:34px;padding-top:16px;border-top:1px solid var(--border);
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    font-size:11.5px;color:var(--text-muted);
+  }
+  footer a{color:var(--text-secondary);text-decoration:underline;text-decoration-color:var(--border-strong);}
+  footer a:hover{color:var(--accent-strong);}
+</style>
+</head>
+<body>
+
+
+<div class="fms-app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">FMS</div>
+      <div class="brand-text">
+        <h1>Faztrack FMS Reader</h1>
+        <div class="eyebrow">Fleet Telemetry Console</div>
+      </div>
+    </div>
+
+    <nav class="tabnav" role="tablist" aria-label="Sections">
+      <button role="tab" aria-selected="true" data-tab="dashboard">Dashboard</button>
+      <button role="tab" aria-selected="false" data-tab="analysis">Analysis</button>
+      <button role="tab" aria-selected="false" data-tab="logs">Logs</button>
+      <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
+    </nav>
+
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="alertsToggle" type="button" aria-pressed="true"><span class="btn-icon" id="alertsIcon"></span><span id="alertsLabel">Alerts On</span></button>
+      <div class="status-pill" id="connPill"><span class="status-dot"></span><span id="connLabel">Not Connected</span></div>
+      <button class="btn btn-primary" id="monitorToggle" type="button"><span class="btn-icon" id="monitorIcon"></span><span id="monitorLabel">Start Monitor</span></button>
+    </div>
+  </div>
+
+  <div class="fleet-strip" id="fleetStrip" role="tablist" aria-label="Fleet vehicles"></div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section class="tabpanel active" id="tab-dashboard">
+    <div class="health-banner" id="healthBanner">
+      <div class="health-icon" id="healthIcon"></div>
+      <div>
+        <div class="health-title" id="healthTitle">ENGINE NORMAL</div>
+        <div class="health-detail" id="healthDetail">All monitored parameters within normal operating range.</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="panelVehicleName">Vehicle</h2>
+          <span class="panel-sub" id="panelVehicleMeta">—</span>
+        </div>
+
+        <div class="gauge-row" id="gaugeRow"></div>
+
+        <div class="stat-grid" id="statGrid"></div>
+
+        <div class="insight-panel">
+          <div class="insight-head"><span id="insightIcon" class="btn-icon"></span><span class="insight-title">Diagnostic Insight</span></div>
+          <div class="insight-rows">
+            <div class="insight-row"><span class="insight-label">Situation</span><span class="insight-value" id="insSituation">Start the monitor to begin live diagnostic analysis.</span></div>
+            <div class="insight-row"><span class="insight-label">Recommended action</span><span class="insight-value action" id="insAction">—</span></div>
+          </div>
+          <div class="insight-evidence" id="insEvidence">Source: Simulated telemetry · no external API calls.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Telemetry Detail</h2>
+          <span class="panel-sub">Grouped by subsystem</span>
+        </div>
+        <div class="telem-groups" id="telemGroups"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ANALYSIS ===================== -->
+  <section class="tabpanel" id="tab-analysis">
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">
+        <h2>Fleet Comparison</h2>
+        <span class="panel-sub">Current speed across active fleet · selected vehicle highlighted</span>
+      </div>
+      <div class="compare-row" id="compareRow"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="analysisVehicleName">History</h2>
+        <span class="panel-sub">Rolling window of recent telemetry snapshots</span>
+      </div>
+      <div class="chart-stack">
+        <div class="chart-card">
+          <div class="chart-card-head"><h3>Vehicle Speed</h3><span class="chart-now mono" id="chartNowSpeed">— km/h</span></div>
+          <div class="chart-wrap" id="chartSpeed"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-head"><h3>Engine RPM</h3><span class="chart-now mono" id="chartNowRpm">— rpm</span></div>
+          <div class="chart-wrap" id="chartRpm"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-head"><h3>Engine Temperature</h3><span class="chart-now mono" id="chartNowTemp">— °C</span></div>
+          <div class="chart-wrap" id="chartTemp"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LOGS ===================== -->
+  <section class="tabpanel" id="tab-logs">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Snapshot Log</h2>
+        <span class="panel-sub">One entry every 5s while the monitor is running · most recent first</span>
+      </div>
+      <div class="log-table-wrap">
+        <div class="log-scroll">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Time</th><th>Vehicle</th><th>Speed</th><th>RPM</th><th>Engine Temp</th><th>Fuel</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="logBody">
+              <tr><td colspan="7" class="empty-log">No snapshots yet — start the monitor to begin logging.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section class="tabpanel" id="tab-settings">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Fleet Configuration</h2>
+        <span class="panel-sub">Applies to all vehicles in this session</span>
+      </div>
+      <div class="settings-grid">
+        <div class="field full">
+          <label for="cfgSource">Faztrack API Endpoint</label>
+          <input type="text" id="cfgSource" value="https://minetech.gofaztrack.com/api/telemetry" spellcheck="false">
+          <span class="field-hint">Not yet wired up — this build simulates telemetry locally until a live feed is connected.</span>
+        </div>
+        <div class="field">
+          <label for="cfgTank">Tank Capacity (L)</label>
+          <input type="number" id="cfgTank" value="600" min="20" max="2000" step="10">
+        </div>
+        <div class="field">
+          <label for="cfgTire">Track/Tire Circumference (cm)</label>
+          <input type="number" id="cfgTire" value="380" min="100" max="900" step="1">
+        </div>
+        <div class="field">
+          <label for="cfgMaxSpeed">Site Speed Limit (km/h)</label>
+          <input type="number" id="cfgMaxSpeed" value="60" min="10" max="120" step="5">
+        </div>
+        <div class="field">
+          <label for="cfgMaxRpm">Max RPM (×1000)</label>
+          <input type="number" id="cfgMaxRpm" value="2.2" min="1" max="6" step="0.1">
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" id="saveSettings" type="button">Save Settings</button>
+        <span class="toast" id="settingsToast">Settings saved</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>© 2026 Faztrack FMS Reader · Powered by <a href="https://minetech.gofaztrack.com/" target="_blank" rel="noopener">Faztrack Mining Technology</a></span>
+    <span>Accelerated synthetic hauling cycle · 1.2 simulated minutes per update · not a live ECU/FMS feed.</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------------
+   * Config (editable via Settings tab)
+   * ------------------------------------------------------------- */
+  var CONFIG = {
+    tankCapacity: 600,
+    tireCirc: 380,
+    maxSpeed: 20,
+    maxRpm: 2200
+  };
+
+  try{
+    var saved = localStorage.getItem('faztrack-fms-reader-config-v2');
+    if(saved){ Object.assign(CONFIG, JSON.parse(saved)); }
+  }catch(e){ /* storage unavailable — ignore */ }
+
+  /* ---------------------------------------------------------------
+   * Fleet model
+   * ------------------------------------------------------------- */
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function rnd(min,max){ return min + Math.random()*(max-min); }
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  /* ---------------------------------------------------------------
+   * Icon set — simple 2px-stroke line icons per brand guideline §8
+   * (navy/slate default, no emoji, no mixed styles)
+   * ------------------------------------------------------------- */
+  var ICON_PATHS = {
+    check:      '<circle cx="12" cy="12" r="9"/><polyline points="8 12.3 10.6 15 16 9.3"/>',
+    alertTri:   '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    alertOct:   '<polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    signalOff:  '<line x1="3" y1="3" x2="21" y2="21"/><path d="M8.3 16.4a5 5 0 0 1 7 0"/><path d="M5 12.9a10 10 0 0 1 5.2-2.7"/><path d="M19 12.9a10 10 0 0 0-2.3-3.1"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>',
+    bell:       '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+    bellOff:    '<path d="M13.7 21a2 2 0 0 1-3.4 0"/><path d="M18.6 13A18 18 0 0 1 18 8"/><path d="M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.3-5"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    play:       '<polygon points="6 3 20 12 6 21" fill="currentColor" stroke="none"/>',
+    stop:       '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+    doc:        '<path d="M8 3h6l4 4v14H8z"/><path d="M14 3v4h4"/><line x1="10.5" y1="12" x2="15.5" y2="12"/><line x1="10.5" y1="15.5" x2="15.5" y2="15.5"/>',
+    target:     '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none"/>'
+  };
+  function iconHTML(name, size){
+    size = size || 16;
+    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICON_PATHS[name]||'')+'</svg>';
+  }
+
+  function makeVehicle(id, name, type, baseSpeed){
+    return {
+      id: id, name: name, type: type,
+      speedTarget: baseSpeed,
+      speed: baseSpeed * 0.6,
+      rpm: 800,
+      engineLoad: 20,
+      throttle: 10,
+      fuelLevel: rnd(0.45, 0.9) * CONFIG.tankCapacity,
+      engineTemp: rnd(78, 88),
+      coolantTemp: rnd(76, 86),
+      mapSensor: 32,
+      batteryVoltage: rnd(13.4, 13.9),
+      iat: rnd(21, 32),
+      afr: 14.7,
+      fuelTrimST: rnd(-2,2),
+      fuelTrimLT: rnd(-2,2),
+      ignitionTiming: 12,
+      injectorPulse: 4.5,
+      cyclePhase: 'Work',
+      cycleMinute: rnd(0, 25.3),
+      payloadBcm: 0,
+      fuelRate: 18,
+      boostPressure: 105,
+      tripCount: Math.floor(rnd(8, 24)),
+      haulDistance: 2,
+      history: { speed: [], rpm: [], engineTemp: [] },
+      logs: [],
+      lastSnapshotAt: null,
+      status: { level:'normal', reasons:[] }
+    };
+  }
+
+  var VEHICLES = [
+    makeVehicle('DT-231', 'Haul Truck 231', 'Mining Dump Truck · 16 BCM truck factor', 15),
+    makeVehicle('EX-14',  'Excavator 14',   'Hydraulic Excavator',     5),
+    makeVehicle('DZ-07',  'Dozer 07',       'Track-Type Dozer',        9),
+    makeVehicle('GR-33',  'Grader 33',      'Motor Grader',           24)
+  ];
+
+  var HISTORY_LEN = 24;
+  var activeId = VEHICLES[0].id;
+  var running = false;
+  var alertsOn = true;
+  var fastTimer = null, snapTimer = null;
+
+  function getActive(){
+    for(var i=0;i<VEHICLES.length;i++){ if(VEHICLES[i].id===activeId) return VEHICLES[i]; }
+    return VEHICLES[0];
+  }
+
+  /* ---------------------------------------------------------------
+   * Simulation step
+   * ------------------------------------------------------------- */
+  var DUMP_CYCLE = {
+    totalMinutes: 25.3,
+    advanceMinutes: 1.2,
+    phases: [
+      {name:'Spotting / Queue', end:1.5,  speed:[0,3],  rpm:[700,1100],  load:[15,40], fuel:[8,18],  payload:0},
+      {name:'Loading',         end:4.5,  speed:[0,2],  rpm:[950,1500],  load:[45,75], fuel:[18,35], payload:16},
+      {name:'Loaded Haul',     end:16.5, speed:[7,13], rpm:[1300,1900], load:[70,95], fuel:[30,55], payload:16},
+      {name:'Dumping',         end:17.3, speed:[0,2],  rpm:[900,1450],  load:[35,65], fuel:[15,30], payload:0},
+      {name:'Empty Return',    end:25.3, speed:[12,18],rpm:[1200,1800], load:[35,65], fuel:[18,35], payload:0}
+    ]
+  };
+
+  function phaseForMinute(minute){
+    for(var i=0;i<DUMP_CYCLE.phases.length;i++){
+      if(minute < DUMP_CYCLE.phases[i].end) return DUMP_CYCLE.phases[i];
+    }
+    return DUMP_CYCLE.phases[DUMP_CYCLE.phases.length-1];
+  }
+
+  function stepDumpTruck(v){
+    v.cycleMinute += DUMP_CYCLE.advanceMinutes;
+    if(v.cycleMinute >= DUMP_CYCLE.totalMinutes){
+      v.cycleMinute %= DUMP_CYCLE.totalMinutes;
+      v.tripCount += 1;
+    }
+
+    var phase = phaseForMinute(v.cycleMinute);
+    v.cyclePhase = phase.name;
+    var targetSpeed = rnd(phase.speed[0], phase.speed[1]);
+    var targetRpm = rnd(phase.rpm[0], phase.rpm[1]);
+    var targetLoad = rnd(phase.load[0], phase.load[1]);
+
+    v.speedTarget = targetSpeed;
+    v.speed = clamp(lerp(v.speed, targetSpeed, 0.48) + rnd(-0.35,0.35), 0, 22);
+    v.rpm = clamp(lerp(v.rpm, targetRpm, 0.42) + rnd(-25,25), 650, 2050);
+    v.engineLoad = clamp(lerp(v.engineLoad, targetLoad, 0.38) + rnd(-1.2,1.2), 10, 98);
+    v.throttle = clamp(lerp(v.throttle, 8 + v.engineLoad*0.78, 0.35), 5, 92);
+    v.fuelRate = clamp(lerp(v.fuelRate, rnd(phase.fuel[0],phase.fuel[1]), 0.35), 6, 58);
+    v.fuelLevel = clamp(v.fuelLevel - v.fuelRate*(DUMP_CYCLE.advanceMinutes/60), 0, CONFIG.tankCapacity);
+    if(v.fuelLevel < CONFIG.tankCapacity*0.12) v.fuelLevel = CONFIG.tankCapacity*rnd(0.82,0.92);
+
+    if(phase.name === 'Loading'){
+      var loadProgress = clamp((v.cycleMinute-1.5)/3,0,1);
+      v.payloadBcm = 16*loadProgress;
+    } else if(phase.name === 'Loaded Haul' || phase.name === 'Dumping'){
+      v.payloadBcm = 16;
+    } else {
+      v.payloadBcm = 0;
+    }
+
+    v.boostPressure = clamp(lerp(v.boostPressure, 96 + v.engineLoad*1.35, 0.32)+rnd(-2,2), 90, 235);
+    v.mapSensor = v.boostPressure;
+    var targetTemp = 82 + v.engineLoad*0.16;
+    v.engineTemp = clamp(lerp(v.engineTemp,targetTemp,0.10)+rnd(-0.18,0.18),78,104);
+    v.coolantTemp = clamp(v.engineTemp-rnd(1,4),76,102);
+    v.batteryVoltage = clamp(lerp(v.batteryVoltage,13.8,0.15)+rnd(-0.04,0.04),13.3,14.4);
+    v.iat = clamp(lerp(v.iat,28+v.engineLoad*0.12,0.12)+rnd(-0.2,0.2),25,43);
+    v.status = computeStatus(v);
+  }
+
+  function stepVehicle(v){
+    if(v.id === 'DT-231'){
+      stepDumpTruck(v);
+      return;
+    }
+    if(Math.random() < 0.06){
+      v.speedTarget = clamp(v.speedTarget + rnd(-35,35), 0, CONFIG.maxSpeed + 8);
+    }
+    v.speed = clamp(lerp(v.speed, v.speedTarget, 0.18) + rnd(-1.2,1.2), 0, CONFIG.maxSpeed + 15);
+
+    var idleRpm = 680;
+    var targetRpm = v.speed < 1 ? idleRpm + rnd(-40,40) : clamp(idleRpm + v.speed*18 + rnd(-60,60), idleRpm-50, CONFIG.maxRpm + 200);
+    v.rpm = clamp(lerp(v.rpm, targetRpm, 0.35), 550, CONFIG.maxRpm + 300);
+
+    var accel = v.speedTarget - v.speed;
+    v.throttle = clamp(lerp(v.throttle, 12 + Math.max(0,accel)*1.8 + (v.speed>2? rnd(0,14):0), 0.3), 0, 100);
+    v.engineLoad = clamp(lerp(v.engineLoad, 15 + v.throttle*0.7 + (v.rpm/CONFIG.maxRpm)*20, 0.25), 0, 100);
+    v.mapSensor = clamp(lerp(v.mapSensor, 28 + v.engineLoad*0.7, 0.3), 20, 105);
+
+    var fuelBurn = (0.004 + v.engineLoad*0.00012) * (running?1:0);
+    v.fuelLevel = clamp(v.fuelLevel - fuelBurn, 0, CONFIG.tankCapacity);
+    if(v.fuelLevel < CONFIG.tankCapacity*0.06 && Math.random() < 0.02){
+      v.fuelLevel = CONFIG.tankCapacity * rnd(0.85,0.98); // depot refuel
+    }
+
+    var targetTemp = v.speed < 1 && v.rpm < 900 ? clamp(v.engineTemp - 0.15, 60, 120) : clamp(84 + v.engineLoad*0.14 + rnd(-1.5,1.5), 60, 118);
+    v.engineTemp = clamp(lerp(v.engineTemp, targetTemp, 0.12), 55, 118);
+    v.coolantTemp = clamp(v.engineTemp - rnd(2,6), 50, 115);
+
+    v.batteryVoltage = clamp(lerp(v.batteryVoltage, running ? 13.8 : 12.6, 0.1) + rnd(-0.06,0.06), 10.8, 14.9);
+    v.iat = clamp(lerp(v.iat, 24 + v.engineLoad*0.05, 0.05) + rnd(-0.3,0.3), 10, 55);
+    v.afr = clamp(14.7 + Math.sin(Date.now()/4000 + v.speed) * 0.9 + rnd(-0.3,0.3), 11.5, 17.5);
+    v.fuelTrimST = clamp(v.fuelTrimST + rnd(-0.6,0.6), -12, 12);
+    v.fuelTrimLT = clamp(lerp(v.fuelTrimLT, v.fuelTrimST*0.6, 0.1), -12, 12);
+    v.ignitionTiming = clamp(lerp(v.ignitionTiming, 8 + v.engineLoad*0.22, 0.2), 0, 42);
+    v.injectorPulse = clamp(lerp(v.injectorPulse, 2 + v.engineLoad*0.13, 0.2), 1.5, 18);
+    v.cyclePhase = v.speed < 1 ? 'Idle / Standby' : 'Working';
+    v.fuelRate = clamp(5 + v.engineLoad*0.35, 5, 45);
+    v.boostPressure = v.mapSensor;
+
+    v.status = computeStatus(v);
+  }
+
+  function computeStatus(v){
+    var reasons = [];
+    var level = 'normal';
+    function bump(l, reason){
+      reasons.push(reason);
+      if(l==='critical') level='critical';
+      else if(l==='warning' && level!=='critical') level='warning';
+    }
+    if(v.engineTemp >= 108) bump('critical', 'engine temperature critical ('+Math.round(v.engineTemp)+'°C)');
+    else if(v.engineTemp >= 99) bump('warning', 'engine temperature high ('+Math.round(v.engineTemp)+'°C)');
+
+    if(v.batteryVoltage <= 11.6) bump('critical', 'battery voltage low ('+v.batteryVoltage.toFixed(1)+'V)');
+    else if(v.batteryVoltage <= 12.3 || v.batteryVoltage >= 14.7) bump('warning', 'battery voltage out of range ('+v.batteryVoltage.toFixed(1)+'V)');
+
+    if(v.rpm >= CONFIG.maxRpm + 150) bump('critical', 'RPM near redline ('+Math.round(v.rpm)+')');
+    else if(v.rpm >= CONFIG.maxRpm - 150) bump('warning', 'RPM approaching limit ('+Math.round(v.rpm)+')');
+
+    if(v.id === 'DT-231' && v.speed > CONFIG.maxSpeed) bump('warning', 'site speed limit exceeded ('+Math.round(v.speed)+' km/h)');
+
+    if(v.fuelLevel <= CONFIG.tankCapacity*0.08) bump('warning', 'fuel level low ('+Math.round(v.fuelLevel)+'L)');
+
+    return { level: level, reasons: reasons };
+  }
+
+  /* ---------------------------------------------------------------
+   * Gauges (SVG arc, 270°)
+   * ------------------------------------------------------------- */
+  function polarToCartesian(cx,cy,r,angleDeg){
+    var a = (angleDeg-90) * Math.PI/180;
+    return { x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) };
+  }
+  function describeArc(cx,cy,r,startAngle,endAngle){
+    if(endAngle - startAngle < 0.5) endAngle = startAngle + 0.5;
+    var start = polarToCartesian(cx,cy,r,endAngle);
+    var end = polarToCartesian(cx,cy,r,startAngle);
+    var largeArc = (endAngle-startAngle) <= 180 ? '0':'1';
+    return 'M '+start.x+' '+start.y+' A '+r+' '+r+' 0 '+largeArc+' 0 '+end.x+' '+end.y;
+  }
+
+  function createGauge(container, opts){
+    var size = 150, cx = size/2, cy = size/2+6, r = 58;
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS,'svg');
+    svg.setAttribute('viewBox','0 0 '+size+' '+(size-4));
+
+    var track = document.createElementNS(svgNS,'path');
+    track.setAttribute('d', describeArc(cx,cy,r,-135,135));
+    track.setAttribute('fill','none');
+    track.setAttribute('stroke','var(--surface-3)');
+    track.setAttribute('stroke-width','10');
+    track.setAttribute('stroke-linecap','round');
+    svg.appendChild(track);
+
+    var progress = document.createElementNS(svgNS,'path');
+    progress.setAttribute('fill','none');
+    progress.setAttribute('stroke', opts.color || 'var(--accent)');
+    progress.setAttribute('stroke-width','10');
+    progress.setAttribute('stroke-linecap','round');
+    svg.appendChild(progress);
+
+    var valueText = document.createElementNS(svgNS,'text');
+    valueText.setAttribute('x', cx); valueText.setAttribute('y', cy-2);
+    valueText.setAttribute('text-anchor','middle');
+    valueText.setAttribute('font-family',"var(--font-mono)");
+    valueText.setAttribute('font-size','21');
+    valueText.setAttribute('font-weight','600');
+    valueText.setAttribute('fill','var(--text-primary)');
+    svg.appendChild(valueText);
+
+    var unitText = document.createElementNS(svgNS,'text');
+    unitText.setAttribute('x', cx); unitText.setAttribute('y', cy+16);
+    unitText.setAttribute('text-anchor','middle');
+    unitText.setAttribute('font-family',"var(--font-body)");
+    unitText.setAttribute('font-size','10.5');
+    unitText.setAttribute('fill','var(--text-muted)');
+    unitText.textContent = opts.unit || '';
+    svg.appendChild(unitText);
+
+    container.appendChild(svg);
+    var labelEl = document.createElement('div');
+    labelEl.className = 'gauge-label';
+    labelEl.textContent = opts.label;
+    container.appendChild(labelEl);
+
+    return {
+      update: function(value, displayStr, color){
+        var frac = clamp((value - opts.min) / (opts.max - opts.min), 0, 1);
+        progress.setAttribute('d', describeArc(cx,cy,r,-135,-135+270*frac));
+        if(color) progress.setAttribute('stroke', color);
+        valueText.textContent = displayStr;
+      }
+    };
+  }
+
+  var gaugeRow = document.getElementById('gaugeRow');
+  function buildGauges(){
+    gaugeRow.innerHTML = '';
+    var wraps = {};
+    [
+      {key:'speed', label:'Speed', unit:'km/h', min:0, max: CONFIG.maxSpeed+15, color:'var(--accent)'},
+      {key:'rpm', label:'Engine RPM', unit:'rpm', min:0, max: CONFIG.maxRpm+300, color:'var(--accent)'},
+      {key:'fuel', label:'Fuel Level', unit:'liters', min:0, max: CONFIG.tankCapacity, color:'var(--accent)'}
+    ].forEach(function(spec){
+      var card = document.createElement('div');
+      card.className = 'gauge-card';
+      gaugeRow.appendChild(card);
+      wraps[spec.key] = { gauge: createGauge(card, spec), spec: spec };
+    });
+    return wraps;
+  }
+  var gauges = buildGauges();
+
+  /* ---------------------------------------------------------------
+   * Stat tiles
+   * ------------------------------------------------------------- */
+  var STAT_FIELDS = [
+    {key:'engineLoad', label:'Engine Load', unit:'%', fmt: v=>Math.round(v)},
+    {key:'throttle', label:'Throttle Pos.', unit:'%', fmt: v=>Math.round(v)},
+    {key:'batteryVoltage', label:'Battery', unit:'V', fmt: v=>v.toFixed(1), warn: v=> v<=12.3||v>=14.7, crit: v=> v<=11.6},
+    {key:'engineTemp', label:'Engine Temp', unit:'°C', fmt: v=>Math.round(v), warn: v=>v>=99, crit: v=>v>=108},
+    {key:'coolantTemp', label:'Coolant Temp', unit:'°C', fmt: v=>Math.round(v)},
+    {key:'iat', label:'Intake Air Temp', unit:'°C', fmt: v=>Math.round(v)}
+  ];
+  var statGrid = document.getElementById('statGrid');
+  function buildStatGrid(){
+    statGrid.innerHTML='';
+    STAT_FIELDS.forEach(function(f){
+      var tile = document.createElement('div');
+      tile.className='stat-tile'; tile.id='stat-'+f.key;
+      tile.innerHTML = '<div class="stat-label">'+f.label+'</div><div class="stat-value" id="stat-val-'+f.key+'">—<span>'+f.unit+'</span></div>';
+      statGrid.appendChild(tile);
+    });
+  }
+  buildStatGrid();
+
+  var TELEM_GROUPS = [
+    { title:'Fuel & Engine Demand', rows:[
+      {k:'Fuel Rate', key:'fuelRate', unit:' L/h', fmt:v=>v.toFixed(1)},
+      {k:'Turbo Pressure (abs.)', key:'boostPressure', unit:' kPa', fmt:v=>Math.round(v)},
+      {k:'Fuel Remaining', key:'fuelLevel', unit:' L', fmt:v=>Math.round(v)},
+      {k:'Intake Air Temp', key:'iat', unit:'°C', fmt:v=>Math.round(v)}
+    ]},
+    { title:'Hauling Cycle', rows:[
+      {k:'Operating Phase', key:'cyclePhase', unit:'', fmt:v=>v},
+      {k:'Payload', key:'payloadBcm', unit:' BCM', fmt:v=>v.toFixed(1)},
+      {k:'One-way Distance', key:'haulDistance', unit:' km', fmt:v=>v.toFixed(1)},
+      {k:'Completed Trips', key:'tripCount', unit:'', fmt:v=>Math.floor(v)}
+    ]}
+  ];
+  var telemGroups = document.getElementById('telemGroups');
+  function buildTelemGroups(){
+    telemGroups.innerHTML='';
+    TELEM_GROUPS.forEach(function(g){
+      var wrap = document.createElement('div');
+      var title = document.createElement('div');
+      title.className='telem-group-title'; title.textContent = g.title;
+      wrap.appendChild(title);
+      var list = document.createElement('div'); list.className='telem-list';
+      g.rows.forEach(function(r){
+        var row = document.createElement('div'); row.className='telem-row';
+        row.innerHTML = '<span class="k">'+r.k+'</span><span class="v" id="telem-'+r.key+'">—</span>';
+        list.appendChild(row);
+      });
+      wrap.appendChild(list);
+      telemGroups.appendChild(wrap);
+    });
+  }
+  buildTelemGroups();
+
+  /* ---------------------------------------------------------------
+   * Line charts (Analysis tab)
+   * ------------------------------------------------------------- */
+  function createLineChart(container, opts){
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS,'svg');
+    svg.setAttribute('viewBox','0 0 100 40');
+    svg.setAttribute('preserveAspectRatio','none');
+
+    var gridGroup = document.createElementNS(svgNS,'g');
+    for(var i=1;i<4;i++){
+      var gl = document.createElementNS(svgNS,'line');
+      var y = i*10;
+      gl.setAttribute('x1','0'); gl.setAttribute('x2','100');
+      gl.setAttribute('y1',y); gl.setAttribute('y2',y);
+      gl.setAttribute('stroke','var(--border)'); gl.setAttribute('stroke-width','0.4');
+      gridGroup.appendChild(gl);
+    }
+    svg.appendChild(gridGroup);
+
+    var gradId = 'grad-'+Math.random().toString(36).slice(2);
+    var defs = document.createElementNS(svgNS,'defs');
+    var grad = document.createElementNS(svgNS,'linearGradient');
+    grad.setAttribute('id',gradId); grad.setAttribute('x1','0'); grad.setAttribute('y1','0'); grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
+    var s1 = document.createElementNS(svgNS,'stop'); s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', opts.color); s1.setAttribute('stop-opacity','0.35');
+    var s2 = document.createElementNS(svgNS,'stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', opts.color); s2.setAttribute('stop-opacity','0');
+    grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad); svg.appendChild(defs);
+
+    var area = document.createElementNS(svgNS,'path');
+    area.setAttribute('fill','url(#'+gradId+')'); area.setAttribute('stroke','none');
+    svg.appendChild(area);
+
+    var line = document.createElementNS(svgNS,'path');
+    line.setAttribute('fill','none'); line.setAttribute('stroke', opts.color);
+    line.setAttribute('stroke-width','1.6'); line.setAttribute('vector-effect','non-scaling-stroke');
+    line.setAttribute('stroke-linejoin','round'); line.setAttribute('stroke-linecap','round');
+    svg.appendChild(line);
+
+    var endDot = document.createElementNS(svgNS,'circle');
+    endDot.setAttribute('r','2.2'); endDot.setAttribute('fill', opts.color);
+    endDot.setAttribute('vector-effect','non-scaling-stroke');
+    svg.appendChild(endDot);
+
+    var hoverLine = document.createElementNS(svgNS,'line');
+    hoverLine.setAttribute('y1','0'); hoverLine.setAttribute('y2','40');
+    hoverLine.setAttribute('stroke','var(--border-strong)'); hoverLine.setAttribute('stroke-width','0.5');
+    hoverLine.setAttribute('vector-effect','non-scaling-stroke');
+    hoverLine.style.opacity = 0;
+    svg.appendChild(hoverLine);
+
+    var hoverDot = document.createElementNS(svgNS,'circle');
+    hoverDot.setAttribute('r','2.4'); hoverDot.setAttribute('fill','var(--text-primary)');
+    hoverDot.setAttribute('stroke', opts.color); hoverDot.setAttribute('stroke-width','1.4');
+    hoverDot.setAttribute('vector-effect','non-scaling-stroke');
+    hoverDot.style.opacity = 0;
+    svg.appendChild(hoverDot);
+
+    var overlay = document.createElementNS(svgNS,'rect');
+    overlay.setAttribute('x','0'); overlay.setAttribute('y','0'); overlay.setAttribute('width','100'); overlay.setAttribute('height','40');
+    overlay.setAttribute('fill','transparent');
+    svg.appendChild(overlay);
+
+    container.appendChild(svg);
+    var tooltip = document.createElement('div');
+    tooltip.className='chart-tooltip';
+    container.appendChild(tooltip);
+
+    var currentData = [];
+
+    function xyFor(i, val){
+      var n = currentData.length;
+      var x = n<=1 ? 100 : (i/(n-1))*100;
+      var frac = clamp((val - opts.min)/(opts.max-opts.min), 0, 1);
+      var y = 38 - frac*36;
+      return {x:x,y:y};
+    }
+
+    function render(){
+      var n = currentData.length;
+      if(n===0){ line.setAttribute('d',''); area.setAttribute('d',''); endDot.style.opacity=0; return; }
+      var pts = currentData.map(function(v,i){ return xyFor(i,v); });
+      var d = 'M '+pts[0].x+' '+pts[0].y;
+      for(var i=1;i<pts.length;i++){ d += ' L '+pts[i].x+' '+pts[i].y; }
+      line.setAttribute('d', d);
+      var ad = d + ' L '+pts[pts.length-1].x+' 40 L '+pts[0].x+' 40 Z';
+      area.setAttribute('d', ad);
+      var last = pts[pts.length-1];
+      endDot.setAttribute('cx', last.x); endDot.setAttribute('cy', last.y);
+      endDot.style.opacity = 1;
+    }
+
+    overlay.addEventListener('mousemove', function(evt){
+      var n = currentData.length;
+      if(n===0) return;
+      var rect = svg.getBoundingClientRect();
+      var relX = (evt.clientX - rect.left) / rect.width;
+      var idx = clamp(Math.round(relX * (n-1)), 0, n-1);
+      var p = xyFor(idx, currentData[idx]);
+      hoverLine.setAttribute('x1', p.x); hoverLine.setAttribute('x2', p.x);
+      hoverLine.style.opacity = 1;
+      hoverDot.setAttribute('cx', p.x); hoverDot.setAttribute('cy', p.y);
+      hoverDot.style.opacity = 1;
+      tooltip.textContent = (opts.fmt ? opts.fmt(currentData[idx]) : currentData[idx]) + ' ' + (opts.unit||'');
+      tooltip.style.left = (p.x/100*rect.width) + 'px';
+      tooltip.style.top = (p.y/40*rect.height) + 'px';
+      tooltip.classList.add('visible');
+    });
+    overlay.addEventListener('mouseleave', function(){
+      hoverLine.style.opacity = 0; hoverDot.style.opacity = 0;
+      tooltip.classList.remove('visible');
+    });
+
+    return { setData: function(arr){ currentData = arr.slice(-HISTORY_LEN); render(); } };
+  }
+
+  var chartSpeed = createLineChart(document.getElementById('chartSpeed'), {min:0, max: CONFIG.maxSpeed+15, color:'var(--accent)', unit:'km/h', fmt:v=>Math.round(v)});
+  var chartRpm   = createLineChart(document.getElementById('chartRpm'),   {min:0, max: CONFIG.maxRpm+300, color:'var(--accent)', unit:'rpm', fmt:v=>Math.round(v)});
+  var chartTemp  = createLineChart(document.getElementById('chartTemp'), {min:55, max:118, color:'var(--accent)', unit:'°C', fmt:v=>Math.round(v)});
+
+  /* ---------------------------------------------------------------
+   * Fleet strip
+   * ------------------------------------------------------------- */
+  var fleetStrip = document.getElementById('fleetStrip');
+  function buildFleetStrip(){
+    fleetStrip.innerHTML = '';
+    VEHICLES.forEach(function(v){
+      var chip = document.createElement('button');
+      chip.type='button'; chip.className='veh-chip'; chip.id='chip-'+v.id;
+      chip.setAttribute('aria-pressed', v.id===activeId ? 'true':'false');
+      chip.innerHTML =
+        '<div class="veh-chip-top"><span class="veh-chip-id">'+v.id+'</span><span class="sev-dot offline" id="chip-dot-'+v.id+'"></span></div>'+
+        '<div class="veh-chip-name">'+v.name+'</div>'+
+        '<div class="veh-chip-stats"><b id="chip-speed-'+v.id+'">0</b> km/h</div>';
+      chip.addEventListener('click', function(){ setActive(v.id); });
+      fleetStrip.appendChild(chip);
+    });
+  }
+  buildFleetStrip();
+
+  function setActive(id){
+    activeId = id;
+    VEHICLES.forEach(function(v){
+      document.getElementById('chip-'+v.id).setAttribute('aria-pressed', v.id===id ? 'true':'false');
+    });
+    renderAll();
+  }
+
+  /* ---------------------------------------------------------------
+   * Compare bars (Analysis tab)
+   * ------------------------------------------------------------- */
+  var compareRow = document.getElementById('compareRow');
+  function buildCompareBars(){
+    compareRow.innerHTML='';
+    VEHICLES.forEach(function(v){
+      var wrap = document.createElement('div'); wrap.className='compare-bar-wrap';
+      wrap.innerHTML =
+        '<span class="compare-bar-value mono" id="cmp-val-'+v.id+'">0</span>'+
+        '<div class="compare-bar" id="cmp-bar-'+v.id+'" style="height:2%"></div>'+
+        '<span class="compare-bar-label">'+v.id+'</span>';
+      compareRow.appendChild(wrap);
+    });
+  }
+  buildCompareBars();
+
+  /* ---------------------------------------------------------------
+   * AI insight
+   * ------------------------------------------------------------- */
+  var NORMAL_SITUATIONS = [
+    'operating within normal parameters across all monitored systems.',
+    'holding steady thermal and electrical readings for this shift.',
+    'tracking within the expected load and fuel-burn band for its class.'
+  ];
+  function buildInsight(v){
+    if(v.status.level === 'critical'){
+      return {
+        situation: v.id+' critical: '+v.status.reasons[0]+'.',
+        action: 'Pull unit from service now and dispatch a technician before next cycle.'
+      };
+    }
+    if(v.status.level === 'warning'){
+      return {
+        situation: v.id+' flagged: '+v.status.reasons.join('; ')+'.',
+        action: 'Schedule inspection at the next scheduled stop — not yet service-critical.'
+      };
+    }
+    return {
+      situation: v.id+' '+(v.id==='DT-231' ? 'is in '+v.cyclePhase.toLowerCase()+'; speed, RPM, payload and fuel rate remain inside the expected cycle band.' : pick(NORMAL_SITUATIONS)),
+      action: 'No action required; continue monitoring against the 25.3-minute hauling-cycle baseline.'
+    };
+  }
+
+  /* ---------------------------------------------------------------
+   * Rendering
+   * ------------------------------------------------------------- */
+  var lastAiAt = null;
+
+  function statusColor(level){
+    return level==='critical' ? 'var(--critical)' : level==='warning' ? 'var(--amber-dark)' : 'var(--good)';
+  }
+  function statusLabel(level){
+    return level==='critical' ? 'CRITICAL CONDITION' : level==='warning' ? 'PARAMETER WARNING' : 'ENGINE NORMAL';
+  }
+  function statusIconName(level){
+    return level==='critical' ? 'alertOct' : level==='warning' ? 'alertTri' : 'check';
+  }
+
+  function renderFleetStrip(){
+    VEHICLES.forEach(function(v){
+      document.getElementById('chip-speed-'+v.id).textContent = running ? Math.round(v.speed) : '—';
+      var dot = document.getElementById('chip-dot-'+v.id);
+      dot.className = 'sev-dot ' + (!running ? 'offline' : v.status.level);
+    });
+  }
+
+  function renderCompare(){
+    var maxV = Math.max(CONFIG.maxSpeed, 1, Math.max.apply(null, VEHICLES.map(function(v){return v.speed;})));
+    VEHICLES.forEach(function(v){
+      var pct = running ? clamp((v.speed/maxV)*100, 2, 100) : 2;
+      var bar = document.getElementById('cmp-bar-'+v.id);
+      bar.style.height = pct+'%';
+      bar.className = 'compare-bar' + (v.id===activeId ? ' selected':'');
+      document.getElementById('cmp-val-'+v.id).textContent = running ? Math.round(v.speed) : '—';
+    });
+  }
+
+  function renderDashboard(){
+    var v = getActive();
+    document.getElementById('panelVehicleName').textContent = v.name + ' · ' + v.id;
+    document.getElementById('panelVehicleMeta').textContent = v.type;
+    document.getElementById('analysisVehicleName').textContent = v.name + ' · ' + v.id + ' History';
+
+    gauges.speed.gauge.update(v.speed, running ? Math.round(v.speed).toString() : '--');
+    gauges.rpm.gauge.update(v.rpm, running ? Math.round(v.rpm).toLocaleString() : '--', v.rpm >= CONFIG.maxRpm ? 'var(--critical)' : v.rpm >= CONFIG.maxRpm-150 ? 'var(--warning)' : 'var(--accent)');
+    gauges.fuel.gauge.update(v.fuelLevel, running ? Math.round(v.fuelLevel).toString() : '--', v.fuelLevel <= CONFIG.tankCapacity*0.15 ? 'var(--warning)' : 'var(--accent)');
+
+    STAT_FIELDS.forEach(function(f){
+      var val = v[f.key];
+      var el = document.getElementById('stat-val-'+f.key);
+      el.innerHTML = (running ? f.fmt(val) : '--') + '<span>'+f.unit+'</span>';
+      var tile = document.getElementById('stat-'+f.key);
+      var isCrit = running && f.crit && f.crit(val);
+      var isWarn = running && f.warn && f.warn(val);
+      tile.className = 'stat-tile' + (isCrit ? ' critical' : isWarn ? ' warning' : '');
+    });
+
+    TELEM_GROUPS.forEach(function(g){
+      g.rows.forEach(function(r){
+        document.getElementById('telem-'+r.key).textContent = running ? (r.fmt(v[r.key]) + r.unit) : '--';
+      });
+    });
+
+    var banner = document.getElementById('healthBanner');
+    var level = running ? v.status.level : 'offline';
+    banner.className = 'health-banner ' + level + (alertsOn ? '' : ' alerts-muted');
+    banner.style.borderLeftColor = running ? statusColor(v.status.level) : 'var(--text-muted)';
+    document.getElementById('healthIcon').innerHTML = iconHTML(running ? statusIconName(v.status.level) : 'signalOff', 22);
+    document.getElementById('healthTitle').textContent = running ? statusLabel(v.status.level) : 'NOT CONNECTED';
+    document.getElementById('healthDetail').textContent = running
+      ? (v.status.reasons.length ? v.status.reasons.join(' · ') : (v.id==='DT-231' ? v.cyclePhase+' · '+v.payloadBcm.toFixed(1)+' BCM payload · '+v.fuelRate.toFixed(1)+' L/h fuel rate.' : 'All monitored parameters within normal operating range.'))
+      : 'Start the monitor to begin streaming live telemetry.';
+
+    chartSpeed.setData(v.history.speed);
+    chartRpm.setData(v.history.rpm);
+    chartTemp.setData(v.history.engineTemp);
+    document.getElementById('chartNowSpeed').textContent = running ? (Math.round(v.speed)+' km/h') : '-- km/h';
+    document.getElementById('chartNowRpm').textContent = running ? (Math.round(v.rpm)+' rpm') : '-- rpm';
+    document.getElementById('chartNowTemp').textContent = running ? (Math.round(v.engineTemp)+' °C') : '-- °C';
+
+    renderCompare();
+    renderFleetStrip();
+  }
+
+  function renderAiInsight(){
+    var v = getActive();
+    var iconEl = document.getElementById('insightIcon');
+    if(running){
+      var ins = buildInsight(v);
+      iconEl.innerHTML = iconHTML(statusIconName(v.status.level), 15);
+      document.getElementById('insSituation').textContent = ins.situation;
+      document.getElementById('insAction').textContent = ins.action;
+      document.getElementById('insEvidence').textContent = 'Source: Synthetic mining cycle · 25.3 min cycle · 16 BCM/trip · analyzed ' + new Date().toLocaleTimeString();
+    } else {
+      iconEl.innerHTML = iconHTML('doc', 15);
+      document.getElementById('insSituation').textContent = 'Start the monitor to begin live diagnostic analysis.';
+      document.getElementById('insAction').textContent = '—';
+      document.getElementById('insEvidence').textContent = 'Source: Simulated telemetry · no external API calls.';
+    }
+  }
+
+  function renderAll(){ renderDashboard(); renderAiInsight(); }
+
+  /* ---------------------------------------------------------------
+   * Snapshot logging
+   * ------------------------------------------------------------- */
+  var logBody = document.getElementById('logBody');
+  var allLogs = [];
+  function pushSnapshot(){
+    VEHICLES.forEach(function(v){
+      v.history.speed.push(v.speed);
+      v.history.rpm.push(v.rpm);
+      v.history.engineTemp.push(v.engineTemp);
+      if(v.history.speed.length > HISTORY_LEN){
+        v.history.speed.shift(); v.history.rpm.shift(); v.history.engineTemp.shift();
+      }
+      allLogs.unshift({
+        time: new Date(),
+        vehicleId: v.id,
+        speed: Math.round(v.speed),
+        rpm: Math.round(v.rpm),
+        temp: Math.round(v.engineTemp),
+        fuel: Math.round(v.fuelLevel),
+        status: v.status.level
+      });
+    });
+    allLogs = allLogs.slice(0, 60);
+    renderLog();
+    renderAiInsight();
+  }
+
+  function renderLog(){
+    if(allLogs.length===0){
+      logBody.innerHTML = '<tr><td colspan="7" class="empty-log">No snapshots yet — start the monitor to begin logging.</td></tr>';
+      return;
+    }
+    logBody.innerHTML = allLogs.map(function(row){
+      return '<tr><td>'+row.time.toLocaleTimeString()+'</td><td>'+row.vehicleId+'</td><td>'+row.speed+' km/h</td><td>'+row.rpm.toLocaleString()+'</td><td>'+row.temp+'°C</td><td>'+row.fuel+'L</td>'+
+        '<td><span class="badge '+row.status+'">'+row.status+'</span></td></tr>';
+    }).join('');
+  }
+
+  /* ---------------------------------------------------------------
+   * Monitor loop
+   * ------------------------------------------------------------- */
+  function fastTick(){
+    VEHICLES.forEach(stepVehicle);
+    renderDashboard();
+  }
+
+  function setRunning(state){
+    running = state;
+    var btn = document.getElementById('monitorToggle');
+    var icon = document.getElementById('monitorIcon');
+    var label = document.getElementById('monitorLabel');
+    var pill = document.getElementById('connPill');
+    var connLabel = document.getElementById('connLabel');
+
+    if(running){
+      icon.innerHTML = iconHTML('stop', 14); label.textContent = 'Stop Monitor'; btn.classList.add('is-running');
+      pill.classList.add('live'); connLabel.textContent = 'Live';
+      fastTimer = setInterval(fastTick, 1200);
+      snapTimer = setInterval(pushSnapshot, 5000);
+      pushSnapshot();
+    } else {
+      icon.innerHTML = iconHTML('play', 14); label.textContent = 'Start Monitor'; btn.classList.remove('is-running');
+      pill.classList.remove('live'); connLabel.textContent = 'Not Connected';
+      clearInterval(fastTimer); clearInterval(snapTimer);
+    }
+    renderAll();
+  }
+
+  document.getElementById('monitorIcon').innerHTML = iconHTML('play', 14);
+  document.getElementById('alertsIcon').innerHTML = iconHTML('bell', 14);
+  document.getElementById('monitorToggle').addEventListener('click', function(){ setRunning(!running); });
+
+  document.getElementById('alertsToggle').addEventListener('click', function(){
+    alertsOn = !alertsOn;
+    var btn = document.getElementById('alertsToggle');
+    document.getElementById('alertsIcon').innerHTML = iconHTML(alertsOn ? 'bell' : 'bellOff', 14);
+    document.getElementById('alertsLabel').textContent = alertsOn ? 'Alerts On' : 'Alerts Off';
+    btn.classList.toggle('is-on', alertsOn);
+    btn.classList.toggle('is-off', !alertsOn);
+    btn.setAttribute('aria-pressed', String(alertsOn));
+    renderDashboard();
+  });
+
+  /* ---------------------------------------------------------------
+   * Tabs
+   * ------------------------------------------------------------- */
+  var tabButtons = document.querySelectorAll('.tabnav button');
+  tabButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabButtons.forEach(function(b){ b.setAttribute('aria-selected','false'); });
+      btn.setAttribute('aria-selected','true');
+      document.querySelectorAll('.tabpanel').forEach(function(p){ p.classList.remove('active'); });
+      document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  /* ---------------------------------------------------------------
+   * Settings
+   * ------------------------------------------------------------- */
+  document.getElementById('saveSettings').addEventListener('click', function(){
+    CONFIG.tankCapacity = parseFloat(document.getElementById('cfgTank').value) || CONFIG.tankCapacity;
+    CONFIG.tireCirc = parseFloat(document.getElementById('cfgTire').value) || CONFIG.tireCirc;
+    CONFIG.maxSpeed = parseFloat(document.getElementById('cfgMaxSpeed').value) || CONFIG.maxSpeed;
+    CONFIG.maxRpm = (parseFloat(document.getElementById('cfgMaxRpm').value) || CONFIG.maxRpm/1000) * 1000;
+
+    try{ localStorage.setItem('faztrack-fms-reader-config-v2', JSON.stringify(CONFIG)); }catch(e){ /* ignore */ }
+
+    gauges = buildGauges();
+    var toast = document.getElementById('settingsToast');
+    toast.classList.add('visible');
+    setTimeout(function(){ toast.classList.remove('visible'); }, 2200);
+    renderAll();
+  });
+
+  /* ---------------------------------------------------------------
+   * Init
+   * ------------------------------------------------------------- */
+  function seedDemoData(){
+    // Prepare a short synthetic history so gauges and charts contain values
+    // as soon as the demo page opens.
+    running = true;
+    for(var i = 0; i < 18; i++){
+      VEHICLES.forEach(function(v){
+        stepVehicle(v);
+        v.history.speed.push(v.speed);
+        v.history.rpm.push(v.rpm);
+        v.history.engineTemp.push(v.engineTemp);
+      });
+    }
+    running = false;
+  }
+
+  document.getElementById('cfgTank').value = CONFIG.tankCapacity;
+  document.getElementById('cfgTire').value = CONFIG.tireCirc;
+  document.getElementById('cfgMaxSpeed').value = CONFIG.maxSpeed;
+  document.getElementById('cfgMaxRpm').value = (CONFIG.maxRpm/1000).toFixed(1);
+
+  seedDemoData();
+  setRunning(true);
+})();
+</script>
+
+</body>
+</html>
