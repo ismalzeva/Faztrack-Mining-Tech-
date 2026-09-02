@@ -17,7 +17,7 @@ export default function Home() {
           <span><strong>MEI</strong><small>Mining Executive Intelligence</small></span>
         </a>
         <nav aria-label="Navigasi utama">
-          <a href="#masalah">Masalah</a><a href="#cara-kerja">Cara kerja</a><a href="#solusi">Solusi</a><a href="#simulasi">Simulasi</a>
+          <a href="#masalah">Masalah</a><a href="#cara-kerja">Cara kerja</a><a href="#solusi">Solusi</a><a href="#simulasi">Simulasi</a><a href="/telemetry">Telemetry Demo</a>
         </nav>
         <a className="button button-small" href="#kontak">Diskusikan masalah</a>
       </header>
@@ -28,7 +28,7 @@ export default function Home() {
             <p className="eyebrow">Mine Performance &amp; Decision Intelligence</p>
             <h1>Dari data operasional site menjadi <em>keputusan manajemen.</em></h1>
             <p className="hero-lead">MEI membantu pemilik kontraktor tambang dan manajemen operasional mengubah data produksi, fleet, fuel, equipment, serta biaya menjadi temuan, evidence, prioritas tindakan, dan hasil terukur.</p>
-            <div className="hero-actions"><a className="button" href="#kontak">Diskusikan satu masalah operasional</a><a className="text-link" href="#cara-kerja">Lihat cara kerja <span>→</span></a></div>
+            <div className="hero-actions"><a className="button" href="#kontak">Diskusikan satu masalah operasional</a><a className="text-link" href="/telemetry">Lihat Telemetry Demo <span>→</span></a></div>
             <div className="trust-line"><span>FMS-agnostic</span><span>Excel-first</span><span>Human-validated</span></div>
           </div>
           <div className="signal-panel" aria-label="Contoh executive intelligence">
@@ -90,7 +90,7 @@ export default function Home() {
 
       <section className="cta-section" id="kontak">
         <p className="eyebrow">Start with one high-value problem</p><h2>Jangan mulai dari teknologi.<br/>Mulailah dari masalah operasional yang paling bernilai.</h2><p>Perusahaan tidak harus mengganti seluruh sistem atau menunggu data menjadi sempurna. Mulai dari satu masalah, uji dengan data yang tersedia, lalu ukur manfaatnya.</p>
-        <div className="hero-actions centered"><a className="button button-light" href="#top">Request an Executive Discovery Session</a><a className="text-link light-link" href="#top">Diskusikan masalah operasional <span>→</span></a></div>
+        <div className="hero-actions centered"><a className="button button-light" href="/telemetry">Buka Telemetry Demo</a><a className="text-link light-link" href="#top">Kembali ke atas <span>→</span></a></div>
       </section>
       <footer><div className="brand footer-brand"><span><strong>MEI</strong><small>Mining Executive Intelligence</small></span></div><p>Mine Performance &amp; Decision Intelligence</p><p>Powered by Faztrack Mining Technology · Faztrack Consulting</p></footer>
     </main>
