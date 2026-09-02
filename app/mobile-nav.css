@@ -1,0 +1,42 @@
+@media (max-width: 900px) {
+  .nav-shell nav {
+    display: flex;
+    margin-left: auto;
+    margin-right: 14px;
+    gap: 0;
+  }
+
+  .nav-shell nav a {
+    display: none;
+  }
+
+  .nav-shell nav a:last-child {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 12px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 2px;
+    color: #ffb229;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 620px) {
+  .nav-shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .nav-shell nav {
+    margin-right: 0;
+  }
+
+  .nav-shell nav a:last-child {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+}
