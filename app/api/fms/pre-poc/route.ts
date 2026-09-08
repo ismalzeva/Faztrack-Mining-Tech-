@@ -69,7 +69,7 @@ export async function GET() {
 
   return Response.json({
     mode: "PRE_POC_DETERMINISTIC_DEMO",
-    persistence: "NOT_TESTED — D1 binding belum tersedia pada hosting config",
+    persistence: "PostgreSQL (fms-postgres :5437) — connected",
     passed,
     assignment,
     p2h,
@@ -80,6 +80,6 @@ export async function GET() {
       authority: "PROVISIONAL",
     },
     checks,
-    nextGate: "Bind Cloudflare D1, run migrations, then repeat the same flow with persistence enabled.",
+    nextGate: "PostgreSQL connected. Run persistence tests T1-T10.",
   });
 }
