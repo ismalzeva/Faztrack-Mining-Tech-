@@ -41,3 +41,6 @@ next-env.d.ts
 /outputs/
 /work/
 .env
+
+# Traccar runtime config (contains credentials)
+traccar/
