@@ -17,6 +17,14 @@ RITASI AUTHORITY = HOLD / REVIEW
 | `VERIFIED_RITASI` | **NONE EMITTED — prohibited and not produced** |
 | Correction applied | **NONE — no ÷2, ×2, dedup, normalisation or correction factor** |
 
+> **Client-identifier sanitization (2026-09-10, Owner-directed):** illustrative lineage examples in
+> this report use anonymous deterministic labels — `UNIT-A/B/C` (haulage units), `EQUIPMENT-A/B`
+> (loader / hauler), `DUMPPOINT-A`, `MATERIAL-A`. Dates, shift, source-row citations, reconciliation
+> values, source sheet/reference methodology, aggregate findings, classifications and SHA256 source
+> hashes are preserved verbatim; **no analytical content or conclusion was altered**.
+> The labels `Pit BR23` / `Pit BR23W` are **deliberately retained** — they are the substance of the
+> 9–15 Aug diagnostic finding and are not substitutable by an anonymous label.
+
 ---
 
 ## 1. Source registry (verified independently)
@@ -157,9 +165,9 @@ Grain: **Tanggal + Shift + Unit**
 
 | Tanggal | Shift | Unit | INPUT Ritase | REKAP Ritase | Tonase | BCM | INPUT rows | REKAP row | Parity |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-08-01 | D | `SCM-LIM 207` | 1 | 1 | 32.84 | 18.659091 | `[49776]` | `[7097]` | MATCH |
-| 2026-08-01 | D | `SCM-LIM 210` | 8 | 8 | 388.84 | 220.931818 | `[49778, 49785, 49794, 49804, 49814, 49820, 49837, 49847]` | `[7098]` | MATCH |
-| 2026-08-31 | N | `SCM-LIM 234` | 9 | 9 | 419.64 | 238.431818 | `[58382, 58402, 58420, 58438, 58453, 58471, 58482, 58500, 58520]` | `[8493]` | MATCH |
+| 2026-08-01 | D | `UNIT-A` | 1 | 1 | 32.84 | 18.659091 | `[49776]` | `[7097]` | MATCH |
+| 2026-08-01 | D | `UNIT-B` | 8 | 8 | 388.84 | 220.931818 | `[49778, 49785, 49794, 49804, 49814, 49820, 49837, 49847]` | `[7098]` | MATCH |
+| 2026-08-31 | N | `UNIT-C` | 9 | 9 | 419.64 | 238.431818 | `[58382, 58402, 58420, 58438, 58453, 58471, 58482, 58500, 58520]` | `[8493]` | MATCH |
 
 Each group's aggregate is reconstructible from the cited original rows — full lineage preserved.
 
@@ -190,11 +198,11 @@ recorded as **absent (0 rows)** and is **not imputed**; its delta is **NULL, not
 ### Smoking-gun lineage pair (identical every field except the `From` label)
 
 ```
-source_row  876 · 2026-08-10 · DS · loader REAL EX 511 · hauler REAL ADT 019
-             From "Pit BR23W" · To LS_32 · HGSO · distance 872.414 · Ritse 5.0
+source_row  876 · 2026-08-10 · DS · loader EQUIPMENT-A · hauler EQUIPMENT-B
+             From "Pit BR23W" · To DUMPPOINT-A · MATERIAL-A · distance 872.414 · Ritse 5.0
 
-source_row 2816 · 2026-08-10 · DS · loader REAL EX 511 · hauler REAL ADT 019
-             From "Pit BR23"  · To LS_32 · HGSO · distance 872.414 · Ritse 5.0
+source_row 2816 · 2026-08-10 · DS · loader EQUIPMENT-A · hauler EQUIPMENT-B
+             From "Pit BR23"  · To DUMPPOINT-A · MATERIAL-A · distance 872.414 · Ritse 5.0
 ```
 
 Identical loader, hauler, dumping point, material, **distance** and **Ritse** — the same physical
