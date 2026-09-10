@@ -44,3 +44,8 @@ next-env.d.ts
 
 # Traccar runtime config (contains credentials)
 traccar/
+
+# Phase 3C — client historical workbooks (NEVER commit)
+validation/fixtures/historical/
+validation/extracted/
+*.xlsb
