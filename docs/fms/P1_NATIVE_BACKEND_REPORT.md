@@ -37,7 +37,7 @@ Vinext route handler (transport only)
 
 | Property | Value |
 |---|---|
-| Unit | `faztrack-fms-api.service` (systemd **user** unit) |
+| Unit | `faztrack-fms-api.service` (systemd **system** unit — `/etc/systemd/system/`, cek via `sudo -n systemctl status …`; `systemctl --user` tidak melihat unit ini) |
 | State | **active + enabled** |
 | Bind | **`127.0.0.1:3097` only — loopback, NOT publicly exposed** |
 | Runtime | `node server/build/fms-api.mjs` (esbuild bundle, deps external) |
