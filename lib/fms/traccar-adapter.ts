@@ -1,5 +1,6 @@
 import type {
   CanonicalMiningEvent,
+  FmsSourceType,
   HmPayload,
   KmPayload,
   KecepatanPayload,
@@ -22,9 +23,19 @@ export interface TraccarPosition {
   attributes?: Record<string, unknown>;
 }
 
+/**
+ * Binding perangkat → unit.
+ *
+ * Vendor-agnostic (owner P2 "ADAPTIVE DEVICE RULE"): FMC650 adalah DEVICE #1,
+ * bukan asumsi arsitektur. `sourceType`/`sourceName` berasal dari registry
+ * perangkat (lib/fms/device-registry.ts), BUKAN dari cabang kode per vendor.
+ * Keduanya opsional agar perilaku pra-registry tetap identik (backward compatible).
+ */
 export interface TraccarDeviceBinding {
   traccarDeviceId: number;
   unit: string;
+  sourceType?: FmsSourceType;
+  sourceName?: string;
 }
 
 export interface TraccarAdapterOptions {
@@ -62,7 +73,7 @@ function numberAttribute(attributes: Record<string, unknown> | undefined, keys: 
 
 export function createTraccarAdapter(options: TraccarAdapterOptions) {
   const bindingMap = new Map(
-    options.deviceBindings.map((binding) => [binding.traccarDeviceId, binding.unit]),
+    options.deviceBindings.map((binding) => [binding.traccarDeviceId, binding]),
   );
 
   const tanggalOperasionalResolver =
@@ -71,18 +82,19 @@ export function createTraccarAdapter(options: TraccarAdapterOptions) {
   const receivedAtFactory = options.receivedAtFactory ?? (() => new Date().toISOString());
 
   return function adaptTraccarPosition(position: TraccarPosition): CanonicalMiningEvent[] {
-    const unit = bindingMap.get(position.deviceId);
-    if (!unit) {
+    const binding = bindingMap.get(position.deviceId);
+    if (!binding) {
       throw new Error(`Unmapped Traccar deviceId ${position.deviceId}`);
     }
+    const unit = binding.unit;
 
     const base = {
       waktu: position.fixTime,
       tanggal_operasional: tanggalOperasionalResolver(position.fixTime),
       shift: options.shiftResolver?.(position.fixTime),
       unit,
-      source_type: "FMC650/Traccar" as const,
-      source_name: `Traccar:${position.deviceId}`,
+      source_type: (binding.sourceType ?? "FMC650/Traccar") as FmsSourceType,
+      source_name: binding.sourceName ?? `Traccar:${position.deviceId}`,
       authority_status: "PROVISIONAL" as const,
       _source_record_id: position.id ? String(position.id) : undefined,
       _received_at: receivedAtFactory(),

@@ -192,3 +192,38 @@ export const fmsHourlyControl = pgTable(
     index("idx_fms_hourly_unit").on(table.unit),
   ]
 );
+
+// ─── P2B: REGISTRY PERANGKAT (vendor-agnostic) ─────────────────────
+// FMC650 = DEVICE #1, bukan arsitektur FMS. Vendor/model/protokol = DATA,
+// sehingga perangkat baru hanya butuh baris registry + adapter/protokol,
+// tanpa perubahan pada Fleet UI / Geofence Engine / Cycle Engine / CCR / MEI.
+export const fmsDevices = pgTable(
+  "fms_devices",
+  {
+    id: text("id").primaryKey(),
+    unitId: text("unit_id"),
+    unit: varchar("unit", { length: 64 }),
+    vendor: varchar("vendor", { length: 32 }).notNull(),
+    model: varchar("model", { length: 32 }),
+    uniqueId: varchar("unique_id", { length: 64 }).notNull(),
+    protocol: varchar("protocol", { length: 32 }).notNull(),
+    transport: varchar("transport", { length: 8 }).notNull().default("tcp"),
+    traccarDeviceId: integer("traccar_device_id"),
+    traccarUniqueId: varchar("traccar_unique_id", { length: 64 }),
+    sourceType: varchar("source_type", { length: 32 }).notNull().default("FMC650/Traccar"),
+    sourceName: varchar("source_name", { length: 64 }),
+    isSimulator: boolean("is_simulator").notNull().default(false),
+    activationState: varchar("activation_state", { length: 16 }).notNull().default("registered"),
+    firstPacketAt: timestamp("first_packet_at", { withTimezone: true }),
+    lastPacketAt: timestamp("last_packet_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_fms_devices_unique_id").on(table.uniqueId),
+    uniqueIndex("uq_fms_devices_traccar_device_id").on(table.traccarDeviceId),
+    index("idx_fms_devices_unit").on(table.unit),
+    index("idx_fms_devices_state").on(table.activationState),
+  ]
+);

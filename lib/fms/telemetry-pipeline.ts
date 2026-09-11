@@ -17,6 +17,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "../../db/schema.js";
 import { simulateTraccarPosition, PRE_POC_UNITS, type SimulatedUnit } from "./telemetry-simulator.js";
 import { createTraccarAdapter, type TraccarPosition } from "./traccar-adapter.js";
+import { loadDeviceBindings, recordDevicePacket } from "./device-registry.js";
+import type { FmsSourceType } from "./canonical-event.js";
 
 const DATABASE_URL = process.env.FMS_DATABASE_URL;
 if (!DATABASE_URL) throw new Error("FMS_DATABASE_URL required");
@@ -104,6 +106,9 @@ interface RegisteredDevice {
   unit: string;
   traccarDeviceId: number;
   traccarUniqueId: string;
+  /** Diisi dari registry perangkat (P2B). Absen = perilaku pra-registry (default adapter). */
+  sourceType?: FmsSourceType;
+  sourceName?: string;
   simGeometry: SimulatedUnit;
 }
 
@@ -111,6 +116,11 @@ async function loadRegisteredDevices(client: Client): Promise<RegisteredDevice[]
   const dbRows = await client.query(
     "SELECT unit, tipe_unit, traccar_device_id FROM fms_units WHERE traccar_device_id IS NOT NULL AND active = true ORDER BY unit",
   );
+
+  // Registry perangkat (P2B, vendor-agnostic): source_type/source_name dibaca dari
+  // DATA registry, bukan dari cabang kode per vendor. Bila tidak ada baris registry,
+  // adapter memakai default lamanya — perilaku pra-P2B tidak berubah.
+  const registry = await loadDeviceBindings(client);
 
   const sid = await ensureTraccarSession();
   const devicesRaw = await httpGetWithCookie(`${TRACCAR_API}/api/devices`, `JSESSIONID=${sid}`);
@@ -125,6 +135,8 @@ async function loadRegisteredDevices(client: Client): Promise<RegisteredDevice[]
       unit: row.unit,
       traccarDeviceId: row.traccar_device_id,
       traccarUniqueId: tc.uniqueId,
+      sourceType: registry.get(row.traccar_device_id)?.sourceType,
+      sourceName: registry.get(row.traccar_device_id)?.sourceName,
       simGeometry: sim ?? {
         traccarDeviceId: row.traccar_device_id,
         unit: row.unit,
@@ -306,7 +318,12 @@ async function generateAndInsertCanonicalEvents(
   receivedAt: string,
 ): Promise<number> {
   const adapter = createTraccarAdapter({
-    deviceBindings: devices.map((d) => ({ traccarDeviceId: d.traccarDeviceId, unit: d.unit })),
+    deviceBindings: devices.map((d) => ({
+      traccarDeviceId: d.traccarDeviceId,
+      unit: d.unit,
+      sourceType: d.sourceType,
+      sourceName: d.sourceName,
+    })),
   });
 
   const events = adapter(position);
@@ -353,6 +370,7 @@ async function processNewPositions(
   const deviceMap = new Map(devices.map((d) => [d.traccarDeviceId, d]));
   const results: IngestionResult[] = [];
   let maxId = lastSeenId;
+  const touchedDevices = new Set<number>();
 
   for (const row of tcRows) {
     if (row.id > maxId) maxId = row.id;
@@ -376,6 +394,7 @@ async function processNewPositions(
 
     let canonicalCount = 0;
     if (inserted) {
+      touchedDevices.add(device.traccarDeviceId);
       canonicalCount = await generateAndInsertCanonicalEvents(client, position, device.unit, devices, receivedAt);
     }
 
@@ -389,10 +408,52 @@ async function processNewPositions(
     });
   }
 
+  // Bukti "PACKET RECEIVED" di registry (P2B/P2D). Tidak mengubah semantik apa pun:
+  // hanya mencatat first_packet_at/last_packet_at pada perangkat yang memang mengirim paket.
+  if (touchedDevices.size > 0) {
+    await recordDevicePacket(client, [...touchedDevices]);
+  }
+
   return { results, newLastSeenId: maxId };
 }
 
-// ─── MAIN PIPELINE ─────────────────────────────────────────────────
+/**
+ * Ingest baris tc_positions yang lebih baru dari `fromId` TANPA mengirim telemetri
+ * simulasi apa pun. Dipakai harness P2 "first packet" supaya bukti rantai
+ * tc_positions → raw → canonical berasal dari paket protokol NYATA (perangkat),
+ * bukan dari simulator.
+ *
+ * Sengaja tipis: memakai jalur internal yang sama (processNewPositions) sehingga
+ * tidak ada logika ingest kedua dan tidak ada perubahan semantik.
+ */
+export async function ingestNewPositions(options?: {
+  fromId?: number;
+  quiet?: boolean;
+}): Promise<{ results: IngestionResult[]; fromId: number; lastSeenId: number }> {
+  const log = options?.quiet ? () => {} : console.log;
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    const devices = await loadRegisteredDevices(client);
+    const fromId =
+      options?.fromId ??
+      ((await client.query("SELECT COALESCE(MAX(id), 0) AS max_id FROM tc_positions")).rows[0]
+        .max_id as number);
+    const { results, newLastSeenId } = await processNewPositions(
+      client,
+      fromId,
+      devices,
+      new Date().toISOString(),
+    );
+    const inserted = results.filter((r) => r.rawInserted).length;
+    log(
+      `Ingest tanpa simulator: ${results.length} baris tc_positions > ${fromId}, ${inserted} masuk raw`,
+    );
+    return { results, fromId, lastSeenId: newLastSeenId };
+  } finally {
+    await client.end();
+  }
+}
 
 export async function runPipeline(options?: {
   ticks?: number;
