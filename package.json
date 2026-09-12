@@ -16,8 +16,11 @@
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {
+    "@types/pg": "^8.23.1",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
+    "pg": "^8.23.0",
+    "postgres": "^3.4.9",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -34,11 +37,12 @@
     "eslint-config-next": "16.2.6",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "MEI \u2014 Mining Executive Intelligence"
+  "displayName": "MEI — Mining Executive Intelligence"
 }

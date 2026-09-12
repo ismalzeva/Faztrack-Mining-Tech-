@@ -40,3 +40,15 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+.env
+
+# Traccar runtime config (contains credentials)
+traccar/
+
+# P1 — native Node FMS operational backend build artifact
+server/build/
+
+# Phase 3C — client historical workbooks (NEVER commit)
+validation/fixtures/historical/
+validation/extracted/
+*.xlsb
